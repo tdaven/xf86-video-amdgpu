@@ -1415,7 +1415,8 @@ static Bool amdgpu_setup_kernel_mem(ScreenPtr pScreen)
 			return FALSE;
 		}
 
-		if (amdgpu_bo_map(pScrn, info->front_buffer)) {
+		if (!info->use_glamor &&
+		    amdgpu_bo_map(pScrn, info->front_buffer) != 0) {
 			ErrorF("Failed to map front buffer memory\n");
 			return FALSE;
 		}
