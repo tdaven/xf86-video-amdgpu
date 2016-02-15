@@ -783,6 +783,10 @@ Bool AMDGPUPreInit_KMS(ScrnInfoPtr pScrn, int flags)
 		goto fail;
 	}
 
+	/* Get ScreenInit function */
+	if (!xf86LoadSubModule(pScrn, "fb"))
+		return FALSE;
+
 	if (!AMDGPUPreInitAccel_KMS(pScrn))
 		goto fail;
 
@@ -867,10 +871,6 @@ Bool AMDGPUPreInit_KMS(ScrnInfoPtr pScrn, int flags)
 
 	/* Set display resolution */
 	xf86SetDpi(pScrn, 0, 0);
-
-	/* Get ScreenInit function */
-	if (!xf86LoadSubModule(pScrn, "fb"))
-		return FALSE;
 
 	if (!xf86SetGamma(pScrn, zeros))
 		return FALSE;
