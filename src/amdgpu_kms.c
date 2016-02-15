@@ -678,25 +678,23 @@ static Bool amdgpu_get_tile_config(ScrnInfoPtr pScrn)
 static void AMDGPUSetupCapabilities(ScrnInfoPtr pScrn)
 {
 #ifdef AMDGPU_PIXMAP_SHARING
+	AMDGPUInfoPtr info = AMDGPUPTR(pScrn);
 	AMDGPUEntPtr pAMDGPUEnt = AMDGPUEntPriv(pScrn);
 	uint64_t value;
 	int ret;
 
 	pScrn->capabilities = 0;
+
+	/* PRIME offloading requires acceleration */
+	if (!info->use_glamor)
+		return;
+
 	ret = drmGetCap(pAMDGPUEnt->fd, DRM_CAP_PRIME, &value);
 	if (ret == 0) {
-		AMDGPUInfoPtr info = AMDGPUPTR(pScrn);
-
-		if (value & DRM_PRIME_CAP_EXPORT) {
-			pScrn->capabilities |= RR_Capability_SourceOutput;
-			if (info->use_glamor && info->dri2.available)
-				pScrn->capabilities |= RR_Capability_SinkOffload;
-		}
-		if (value & DRM_PRIME_CAP_IMPORT) {
-			pScrn->capabilities |= RR_Capability_SinkOutput;
-			if (info->use_glamor && info->dri2.available)
-				pScrn->capabilities |= RR_Capability_SourceOffload;
-		}
+		if (value & DRM_PRIME_CAP_EXPORT)
+			pScrn->capabilities |= RR_Capability_SourceOutput | RR_Capability_SinkOffload;
+		if (value & DRM_PRIME_CAP_IMPORT)
+			pScrn->capabilities |= RR_Capability_SinkOutput | RR_Capability_SourceOffload;
 	}
 #endif
 }
