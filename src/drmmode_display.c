@@ -2307,7 +2307,7 @@ void drmmode_uevent_fini(ScrnInfoPtr scrn, drmmode_ptr drmmode)
 }
 
 Bool amdgpu_do_pageflip(ScrnInfoPtr scrn, ClientPtr client,
-			struct amdgpu_buffer *new_front, uint64_t id, void *data,
+			PixmapPtr new_front, uint64_t id, void *data,
 			int ref_crtc_hw_id, amdgpu_drm_handler_proc handler,
 			amdgpu_drm_abort_proc abort)
 {
@@ -2315,27 +2315,16 @@ Bool amdgpu_do_pageflip(ScrnInfoPtr scrn, ClientPtr client,
 	xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
 	drmmode_crtc_private_ptr drmmode_crtc = config->crtc[0]->driver_private;
 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
-	unsigned int pitch;
 	int i;
-	int height;
 	drmmode_flipdata_ptr flipdata = NULL;
 	drmmode_flipevtcarrier_ptr flipcarrier = NULL;
 	struct amdgpu_drm_queue_entry *drm_queue = NULL;
-	union gbm_bo_handle bo_handle;
-	uint32_t handle;
+	uint32_t new_front_handle;
 
-	if (new_front->flags & AMDGPU_BO_FLAGS_GBM) {
-		pitch = gbm_bo_get_stride(new_front->bo.gbm);
-		height = gbm_bo_get_height(new_front->bo.gbm);
-		bo_handle = gbm_bo_get_handle(new_front->bo.gbm);
-		handle = bo_handle.u32;
-	} else {
-		pitch = scrn->displayWidth;
-		height = scrn->virtualY;
-		if (amdgpu_bo_export(new_front->bo.amdgpu,
-				amdgpu_bo_handle_type_kms,
-				&handle))
-			goto error;
+	if (!amdgpu_pixmap_get_handle(new_front, &new_front_handle)) {
+		xf86DrvMsg(scrn->scrnIndex, X_WARNING,
+			   "flip queue: data alloc failed.\n");
+		return FALSE;
 	}
 
 	flipdata = calloc(1, sizeof(drmmode_flipdata_rec));
@@ -2349,9 +2338,10 @@ Bool amdgpu_do_pageflip(ScrnInfoPtr scrn, ClientPtr client,
 	 * Create a new handle for the back buffer
 	 */
 	flipdata->old_fb_id = drmmode->fb_id;
-	if (drmModeAddFB(pAMDGPUEnt->fd, scrn->virtualX, height,
-			 scrn->depth, scrn->bitsPerPixel, pitch,
-			 handle, &drmmode->fb_id))
+	if (drmModeAddFB(pAMDGPUEnt->fd, new_front->drawable.width,
+			 new_front->drawable.height, scrn->depth,
+			 scrn->bitsPerPixel, new_front->devKind,
+			 new_front_handle, &drmmode->fb_id))
 		goto error;
 
 	/*

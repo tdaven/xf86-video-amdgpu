@@ -144,7 +144,7 @@ extern void drmmode_uevent_fini(ScrnInfoPtr scrn, drmmode_ptr drmmode);
 extern int drmmode_get_crtc_id(xf86CrtcPtr crtc);
 extern int drmmode_get_pitch_align(ScrnInfoPtr scrn, int bpe);
 Bool amdgpu_do_pageflip(ScrnInfoPtr scrn, ClientPtr client,
-			struct amdgpu_buffer *new_front, uint64_t id, void *data,
+			PixmapPtr new_front, uint64_t id, void *data,
 			int ref_crtc_hw_id, amdgpu_drm_handler_proc handler,
 			amdgpu_drm_abort_proc abort);
 int drmmode_crtc_get_ust_msc(xf86CrtcPtr crtc, CARD64 *ust, CARD64 *msc);

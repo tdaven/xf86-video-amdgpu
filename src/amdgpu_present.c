@@ -294,14 +294,9 @@ amdgpu_present_flip(RRCrtcPtr crtc, uint64_t event_id, uint64_t target_msc,
 	struct amdgpu_present_vblank_event *event;
 	xf86CrtcPtr xf86_crtc = crtc->devPrivate;
 	int crtc_id = xf86_crtc ? drmmode_get_crtc_id(xf86_crtc) : -1;
-	struct amdgpu_buffer *bo;
 	Bool ret;
 
 	if (!amdgpu_present_check_flip(crtc, screen->root, pixmap, sync_flip))
-		return FALSE;
-
-	bo = amdgpu_get_pixmap_bo(pixmap);
-	if (!bo)
 		return FALSE;
 
 	event = calloc(1, sizeof(struct amdgpu_present_vblank_event));
@@ -311,8 +306,8 @@ amdgpu_present_flip(RRCrtcPtr crtc, uint64_t event_id, uint64_t target_msc,
 	event->event_id = event_id;
 	event->crtc = xf86_crtc;
 
-	ret = amdgpu_do_pageflip(scrn, AMDGPU_DRM_QUEUE_CLIENT_DEFAULT, bo,
-				 event_id, event, crtc_id,
+	ret = amdgpu_do_pageflip(scrn, AMDGPU_DRM_QUEUE_CLIENT_DEFAULT,
+				 pixmap, event_id, event, crtc_id,
 				 amdgpu_present_flip_event,
 				 amdgpu_present_flip_abort);
 	if (!ret)
@@ -334,17 +329,10 @@ amdgpu_present_unflip(ScreenPtr screen, uint64_t event_id)
 	xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
 	struct amdgpu_present_vblank_event *event;
 	PixmapPtr pixmap = screen->GetScreenPixmap(screen);
-	struct amdgpu_buffer *bo;
 	int i;
 
 	if (!amdgpu_present_check_flip(NULL, screen->root, pixmap, TRUE))
 		goto modeset;
-
-	bo = amdgpu_get_pixmap_bo(pixmap);
-	if (!bo) {
-		ErrorF("%s: amdgpu_get_pixmap_bo failed, display might freeze\n", __func__);
-		goto modeset;
-	}
 
 	event = calloc(1, sizeof(struct amdgpu_present_vblank_event));
 	if (!event) {
@@ -354,7 +342,7 @@ amdgpu_present_unflip(ScreenPtr screen, uint64_t event_id)
 
 	event->event_id = event_id;
 
-	if (amdgpu_do_pageflip(scrn, AMDGPU_DRM_QUEUE_CLIENT_DEFAULT, bo,
+	if (amdgpu_do_pageflip(scrn, AMDGPU_DRM_QUEUE_CLIENT_DEFAULT, pixmap,
 			       event_id, event, -1, amdgpu_present_flip_event,
 			       amdgpu_present_flip_abort))
 		return;

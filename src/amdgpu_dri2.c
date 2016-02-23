@@ -595,7 +595,6 @@ amdgpu_dri2_schedule_flip(ScrnInfoPtr scrn, ClientPtr client,
 {
 	AMDGPUInfoPtr info = AMDGPUPTR(scrn);
 	struct dri2_buffer_priv *back_priv;
-	struct amdgpu_buffer *bo = NULL;
 	DRI2FrameEventPtr flip_info;
 	/* Main crtc for this drawable shall finally deliver pageflip event. */
 	xf86CrtcPtr crtc = amdgpu_dri2_drawable_crtc(draw, FALSE);
@@ -618,10 +617,9 @@ amdgpu_dri2_schedule_flip(ScrnInfoPtr scrn, ClientPtr client,
 
 	/* Page flip the full screen buffer */
 	back_priv = back->driverPrivate;
-	bo = amdgpu_get_pixmap_bo(back_priv->pixmap);
-
-	if (amdgpu_do_pageflip(scrn, client, bo, AMDGPU_DRM_QUEUE_ID_DEFAULT,
-			       flip_info, ref_crtc_hw_id,
+	if (amdgpu_do_pageflip(scrn, client, back_priv->pixmap,
+			       AMDGPU_DRM_QUEUE_ID_DEFAULT, flip_info,
+			       ref_crtc_hw_id,
 			       amdgpu_dri2_flip_event_handler,
 			       amdgpu_dri2_flip_event_abort)) {
 		info->drmmode.dri2_flipping = TRUE;
