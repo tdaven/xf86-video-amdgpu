@@ -131,6 +131,16 @@ Bool amdgpu_bo_get_handle(struct amdgpu_buffer *bo, uint32_t *handle)
 				handle) == 0;
 }
 
+Bool amdgpu_pixmap_get_handle(PixmapPtr pixmap, uint32_t *handle)
+{
+	struct amdgpu_buffer *bo = amdgpu_get_pixmap_bo(pixmap);
+
+	if (!bo)
+		return FALSE;
+
+	return amdgpu_bo_get_handle(bo, handle);
+}
+
 int amdgpu_bo_map(ScrnInfoPtr pScrn, struct amdgpu_buffer *bo)
 {
 	int ret = 0;
