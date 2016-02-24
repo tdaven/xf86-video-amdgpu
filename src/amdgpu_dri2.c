@@ -45,6 +45,7 @@
 
 #include <gbm.h>
 
+#include "amdgpu_bo_helper.h"
 #include "amdgpu_version.h"
 
 #include "amdgpu_list.h"
@@ -86,6 +87,25 @@ DevPrivateKey dri2_window_private_key = &dri2_window_private_key_index;
 	((struct dri2_window_priv*) \
 	 dixLookupPrivate(&(window)->devPrivates, dri2_window_private_key))
 
+/* Get GEM flink name for a pixmap */
+static Bool
+amdgpu_get_flink_name(AMDGPUEntPtr pAMDGPUEnt, PixmapPtr pixmap, uint32_t *name)
+{
+	struct amdgpu_buffer *bo = amdgpu_get_pixmap_bo(pixmap);
+	struct drm_gem_flink flink;
+
+	if (bo && !(bo->flags & AMDGPU_BO_FLAGS_GBM) &&
+	    amdgpu_bo_export(bo->bo.amdgpu,
+			     amdgpu_bo_handle_type_gem_flink_name,
+			     name) == 0)
+		return TRUE;
+
+	if (!amdgpu_pixmap_get_handle(pixmap, &flink.handle) ||
+	    ioctl(pAMDGPUEnt->fd, DRM_IOCTL_GEM_FLINK, &flink) < 0)
+		return FALSE;
+	*name = flink.name;
+	return TRUE;
+}
 
 static PixmapPtr get_drawable_pixmap(DrawablePtr drawable)
 {
@@ -150,11 +170,11 @@ amdgpu_dri2_create_buffer2(ScreenPtr pScreen,
 			   unsigned int attachment, unsigned int format)
 {
 	ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
+	AMDGPUEntPtr pAMDGPUEnt = AMDGPUEntPriv(pScrn);
 	AMDGPUInfoPtr info = AMDGPUPTR(pScrn);
 	BufferPtr buffers;
 	struct dri2_buffer_priv *privates;
 	PixmapPtr pixmap;
-	struct amdgpu_buffer *bo = NULL;
 	unsigned front_width;
 	unsigned aligned_width = drawable->width;
 	unsigned height = drawable->height;
@@ -185,10 +205,12 @@ amdgpu_dri2_create_buffer2(ScreenPtr pScreen,
 	pixmap = NULL;
 
 	if (attachment == DRI2BufferFrontLeft) {
+		uint32_t handle;
+
 		pixmap = get_drawable_pixmap(drawable);
 		if (pScreen != pixmap->drawable.pScreen)
 			pixmap = NULL;
-		else if (info->use_glamor && !amdgpu_get_pixmap_bo(pixmap)) {
+		else if (info->use_glamor && !amdgpu_pixmap_get_handle(pixmap, &handle)) {
 			is_glamor_pixmap = TRUE;
 			aligned_width = pixmap->drawable.width;
 			height = pixmap->drawable.height;
@@ -213,29 +235,11 @@ amdgpu_dri2_create_buffer2(ScreenPtr pScreen,
 		goto error;
 
 	if (pixmap) {
-		struct drm_gem_flink flink;
-		union gbm_bo_handle bo_handle;
-
 		if (is_glamor_pixmap)
 			pixmap = fixup_glamor(drawable, pixmap);
-		bo = amdgpu_get_pixmap_bo(pixmap);
-		if (!bo) {
+
+		if (!amdgpu_get_flink_name(pAMDGPUEnt, pixmap, &buffers->name))
 			goto error;
-		}
-
-		if (bo->flags & AMDGPU_BO_FLAGS_GBM) {
-			AMDGPUEntPtr pAMDGPUEnt = AMDGPUEntPriv(pScrn);
-
-			bo_handle = gbm_bo_get_handle(bo->bo.gbm);
-			flink.handle = bo_handle.u32;
-			if (ioctl(pAMDGPUEnt->fd, DRM_IOCTL_GEM_FLINK, &flink) < 0)
-				goto error;
-			buffers->name = flink.name;
-		} else {
-			amdgpu_bo_export(bo->bo.amdgpu,
-				amdgpu_bo_handle_type_gem_flink_name,
-				&buffers->name);
-		}
 	}
 
 	privates = calloc(1, sizeof(struct dri2_buffer_priv));
@@ -633,31 +637,17 @@ static Bool update_front(DrawablePtr draw, DRI2BufferPtr front)
 	ScreenPtr screen = draw->pScreen;
 	ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
 	AMDGPUEntPtr pAMDGPUEnt = AMDGPUEntPriv(scrn);
-	PixmapPtr pixmap;
+	PixmapPtr pixmap = get_drawable_pixmap(draw);
 	struct dri2_buffer_priv *priv = front->driverPrivate;
-	struct amdgpu_buffer *bo = NULL;
-	union gbm_bo_handle bo_handle;
-	struct drm_gem_flink flink;
 
-	pixmap = get_drawable_pixmap(draw);
-	pixmap->refcnt++;
+	if (!amdgpu_get_flink_name(pAMDGPUEnt, pixmap, &front->name))
+		return FALSE;
 
-	bo = amdgpu_get_pixmap_bo(pixmap);
-	if (bo->flags & AMDGPU_BO_FLAGS_GBM) {
-		bo_handle = gbm_bo_get_handle(bo->bo.gbm);
-		flink.handle = bo_handle.u32;
-		if (ioctl(pAMDGPUEnt->fd, DRM_IOCTL_GEM_FLINK, &flink) < 0)
-			return FALSE;
-		front->name = flink.name;
-	} else {
-		amdgpu_bo_export(bo->bo.amdgpu,
-			amdgpu_bo_handle_type_gem_flink_name,
-			&front->name);
-	}
 	(*draw->pScreen->DestroyPixmap) (priv->pixmap);
 	front->pitch = pixmap->devKind;
 	front->cpp = pixmap->drawable.bitsPerPixel / 8;
 	priv->pixmap = pixmap;
+	pixmap->refcnt++;
 
 	return TRUE;
 }

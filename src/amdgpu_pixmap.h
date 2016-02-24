@@ -34,7 +34,7 @@ struct amdgpu_pixmap {
 
 	struct amdgpu_buffer *bo;
 
-	/* GEM handle for pixmaps shared via DRI3 */
+	/* GEM handle for pixmaps shared via DRI2/3 */
 	Bool handle_valid;
 	uint32_t handle;
 };
