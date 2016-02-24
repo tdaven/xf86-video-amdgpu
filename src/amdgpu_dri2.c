@@ -719,8 +719,8 @@ amdgpu_dri2_exchange_buffers(DrawablePtr draw, DRI2BufferPtr front,
 {
 	struct dri2_buffer_priv *front_priv = front->driverPrivate;
 	struct dri2_buffer_priv *back_priv = back->driverPrivate;
-	struct amdgpu_buffer *front_bo = NULL;
-	struct amdgpu_buffer *back_bo = NULL;
+	struct amdgpu_pixmap *front_pix;
+	struct amdgpu_pixmap *back_pix;
 	ScreenPtr screen;
 	AMDGPUInfoPtr info;
 	RegionRec region;
@@ -737,20 +737,23 @@ amdgpu_dri2_exchange_buffers(DrawablePtr draw, DRI2BufferPtr front,
 	front->name = back->name;
 	back->name = tmp;
 
-	/* Swap pixmap bos */
-	front_bo = amdgpu_get_pixmap_bo(front_priv->pixmap);
-	back_bo = amdgpu_get_pixmap_bo(back_priv->pixmap);
-	amdgpu_set_pixmap_bo(front_priv->pixmap, back_bo);
-	amdgpu_set_pixmap_bo(back_priv->pixmap, front_bo);
+	/* Swap pixmap privates */
+	front_pix = amdgpu_get_pixmap_private(front_priv->pixmap);
+	back_pix = amdgpu_get_pixmap_private(back_priv->pixmap);
+	amdgpu_set_pixmap_private(front_priv->pixmap, back_pix);
+	amdgpu_set_pixmap_private(back_priv->pixmap, front_pix);
 
 	/* Do we need to update the Screen? */
 	screen = draw->pScreen;
 	info = AMDGPUPTR(xf86ScreenToScrn(screen));
-	if (front_bo == info->front_buffer) {
-		amdgpu_bo_ref(back_bo);
+	if (front_pix->bo == info->front_buffer) {
+		struct amdgpu_pixmap *screen_priv =
+			amdgpu_get_pixmap_private(screen->GetScreenPixmap(screen));
+
+		amdgpu_bo_ref(back_pix->bo);
 		amdgpu_bo_unref(&info->front_buffer);
-		info->front_buffer = back_bo;
-		amdgpu_set_pixmap_bo(screen->GetScreenPixmap(screen), back_bo);
+		info->front_buffer = back_pix->bo;
+		*screen_priv = *back_pix;
 	}
 
 	amdgpu_glamor_exchange_buffers(front_priv->pixmap, back_priv->pixmap);

@@ -133,12 +133,46 @@ Bool amdgpu_bo_get_handle(struct amdgpu_buffer *bo, uint32_t *handle)
 
 Bool amdgpu_pixmap_get_handle(PixmapPtr pixmap, uint32_t *handle)
 {
-	struct amdgpu_buffer *bo = amdgpu_get_pixmap_bo(pixmap);
+#ifdef USE_GLAMOR
+	ScreenPtr screen = pixmap->drawable.pScreen;
+	ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
+	AMDGPUInfoPtr info = AMDGPUPTR(scrn);
+#endif
+	struct amdgpu_pixmap *priv = amdgpu_get_pixmap_private(pixmap);
 
-	if (!bo)
+	if (!priv) {
+		priv = calloc(1, sizeof(*priv));
+		amdgpu_set_pixmap_private(pixmap, priv);
+	}
+
+	if (priv->handle_valid)
+		goto success;
+	
+#ifdef USE_GLAMOR
+	if (info->use_glamor) {
+		AMDGPUEntPtr pAMDGPUEnt = AMDGPUEntPriv(scrn);
+		CARD16 stride;
+		CARD32 size;
+		int fd, r;
+
+		fd = glamor_fd_from_pixmap(screen, pixmap, &stride, &size);
+		if (fd < 0)
+			return FALSE;
+
+		r = drmPrimeFDToHandle(pAMDGPUEnt->fd, fd, &priv->handle);
+		close(fd);
+		if (r == 0)
+			goto success;
+	}
+#endif
+
+	if (!priv->bo || !amdgpu_bo_get_handle(priv->bo, &priv->handle))
 		return FALSE;
 
-	return amdgpu_bo_get_handle(bo, handle);
+ success:
+	priv->handle_valid = TRUE;
+	*handle = priv->handle;
+	return TRUE;
 }
 
 int amdgpu_bo_map(ScrnInfoPtr pScrn, struct amdgpu_buffer *bo)

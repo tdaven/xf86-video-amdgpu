@@ -33,6 +33,10 @@ struct amdgpu_pixmap {
 	uint_fast32_t gpu_write;
 
 	struct amdgpu_buffer *bo;
+
+	/* GEM handle for pixmaps shared via DRI3 */
+	Bool handle_valid;
+	uint32_t handle;
 };
 
 #if HAS_DEVPRIVATEKEYREC
@@ -70,6 +74,7 @@ static inline void amdgpu_set_pixmap_bo(PixmapPtr pPix, struct amdgpu_buffer *bo
 
 		if (priv->bo) {
 			amdgpu_bo_unref(&priv->bo);
+			priv->handle_valid = FALSE;
 		}
 
 		if (!bo) {
