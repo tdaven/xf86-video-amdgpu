@@ -251,12 +251,22 @@ static void amdgpu_dirty_update(ScreenPtr screen)
 #endif
 
 static Bool
-amdgpu_scanout_extents_intersect(BoxPtr extents, int x, int y, int w, int h)
+amdgpu_scanout_extents_intersect(xf86CrtcPtr xf86_crtc, BoxPtr extents, int w,
+				 int h)
 {
-	extents->x1 = max(extents->x1 - x, 0);
-	extents->y1 = max(extents->y1 - y, 0);
-	extents->x2 = min(extents->x2 - x, w);
-	extents->y2 = min(extents->y2 - y, h);
+	extents->x1 = max(extents->x1 - xf86_crtc->x, 0);
+	extents->y1 = max(extents->y1 - xf86_crtc->y, 0);
+
+	switch (xf86_crtc->rotation & 0xf) {
+	case RR_Rotate_90:
+	case RR_Rotate_270:
+		extents->x2 = min(extents->x2 - xf86_crtc->x, h);
+		extents->y2 = min(extents->y2 - xf86_crtc->y, w);
+		break;
+	default:
+		extents->x2 = min(extents->x2 - xf86_crtc->x, w);
+		extents->y2 = min(extents->y2 - xf86_crtc->y, h);
+	}
 
 	return (extents->x1 < extents->x2 && extents->y1 < extents->y2);
 }
@@ -269,7 +279,6 @@ amdgpu_scanout_do_update(xf86CrtcPtr xf86_crtc, int scanout_id)
 	RegionPtr pRegion;
 	DrawablePtr pDraw;
 	ScreenPtr pScreen;
-	GCPtr gc;
 	BoxRec extents;
 
 	if (!xf86_crtc->enabled ||
@@ -286,25 +295,79 @@ amdgpu_scanout_do_update(xf86CrtcPtr xf86_crtc, int scanout_id)
 		return FALSE;
 
 	pDraw = &drmmode_crtc->scanout[scanout_id].pixmap->drawable;
+	pScreen = pDraw->pScreen;
 	extents = *RegionExtents(pRegion);
 	RegionEmpty(pRegion);
-	if (!amdgpu_scanout_extents_intersect(&extents, xf86_crtc->x, xf86_crtc->y,
-					      pDraw->width, pDraw->height))
+	if (!amdgpu_scanout_extents_intersect(xf86_crtc, &extents, pDraw->width,
+					      pDraw->height))
 		return FALSE;
 
-	pScreen = pDraw->pScreen;
-	gc = GetScratchGC(pDraw->depth, pScreen);
+	if (xf86_crtc->driverIsPerformingTransform) {
+		SourceValidateProcPtr SourceValidate = pScreen->SourceValidate;
+		PictFormatPtr format = PictureWindowFormat(pScreen->root);
+		int error;
+		PicturePtr src, dst;
+		XID include_inferiors = IncludeInferiors;
 
-	ValidateGC(pDraw, gc);
-	(*gc->ops->CopyArea)(&pScreen->GetScreenPixmap(pScreen)->drawable,
-			     pDraw, gc,
-			     xf86_crtc->x + extents.x1, xf86_crtc->y + extents.y1,
-			     extents.x2 - extents.x1, extents.y2 - extents.y1,
-			     extents.x1, extents.y1);
-	FreeScratchGC(gc);
+		src = CreatePicture(None,
+				    &pScreen->root->drawable,
+				    format,
+				    CPSubwindowMode,
+				    &include_inferiors, serverClient, &error);
+		if (!src) {
+			ErrorF("Failed to create source picture for transformed scanout "
+			       "update\n");
+			goto out;
+		}
+
+		dst = CreatePicture(None, pDraw, format, 0L, NULL, serverClient, &error);
+		if (!dst) {
+			ErrorF("Failed to create destination picture for transformed scanout "
+			       "update\n");
+			goto out;
+		}
+		error = SetPictureTransform(src, &xf86_crtc->crtc_to_framebuffer);
+		if (error) {
+			ErrorF("SetPictureTransform failed for transformed scanout "
+			       "update\n");
+			goto out;
+		}
+
+		if (xf86_crtc->filter)
+			SetPicturePictFilter(src, xf86_crtc->filter, xf86_crtc->params,
+					     xf86_crtc->nparams);
+
+		extents.x1 += xf86_crtc->x - (xf86_crtc->filter_width >> 1);
+		extents.x2 += xf86_crtc->x + (xf86_crtc->filter_width >> 1);
+		extents.y1 += xf86_crtc->y - (xf86_crtc->filter_height >> 1);
+		extents.y2 += xf86_crtc->y + (xf86_crtc->filter_height >> 1);
+		pixman_f_transform_bounds(&xf86_crtc->f_framebuffer_to_crtc, &extents);
+
+		pScreen->SourceValidate = NULL;
+		CompositePicture(PictOpSrc,
+				 src, NULL, dst,
+				 extents.x1, extents.y1, 0, 0, extents.x1,
+				 extents.y1, extents.x2 - extents.x1,
+				 extents.y2 - extents.y1);
+		pScreen->SourceValidate = SourceValidate;
+
+		FreePicture(src, None);
+		FreePicture(dst, None);
+	} else {
+		GCPtr gc = GetScratchGC(pDraw->depth, pScreen);
+
+		ValidateGC(pDraw, gc);
+		(*gc->ops->CopyArea)(&pScreen->GetScreenPixmap(pScreen)->drawable,
+				     pDraw, gc,
+				     xf86_crtc->x + extents.x1, xf86_crtc->y + extents.y1,
+				     extents.x2 - extents.x1, extents.y2 - extents.y1,
+				     extents.x1, extents.y1);
+		FreeScratchGC(gc);
+	}
 
 	amdgpu_glamor_flush(xf86_crtc->scrn);
 
+out:
 	return TRUE;
 }
 
@@ -354,8 +417,8 @@ amdgpu_scanout_update(xf86CrtcPtr xf86_crtc)
 
 	pDraw = &drmmode_crtc->scanout[0].pixmap->drawable;
 	extents = *RegionExtents(pRegion);
-	if (!amdgpu_scanout_extents_intersect(&extents, xf86_crtc->x, xf86_crtc->y,
-					      pDraw->width, pDraw->height))
+	if (!amdgpu_scanout_extents_intersect(xf86_crtc, &extents, pDraw->width,
+					      pDraw->height))
 		return;
 
 	scrn = xf86_crtc->scrn;
@@ -444,21 +507,19 @@ static void AMDGPUBlockHandler_KMS(BLOCKHANDLER_ARGS_DECL)
 	SCREEN_PTR(arg);
 	ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
 	AMDGPUInfoPtr info = AMDGPUPTR(pScrn);
+	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
+	int c;
 
 	pScreen->BlockHandler = info->BlockHandler;
 	(*pScreen->BlockHandler) (BLOCKHANDLER_ARGS);
 	pScreen->BlockHandler = AMDGPUBlockHandler_KMS;
 
-	if (info->tear_free || info->shadow_primary) {
-		xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
-		int c;
-
-		for (c = 0; c < xf86_config->num_crtc; c++) {
-			if (info->tear_free)
-				amdgpu_scanout_flip(pScreen, info, xf86_config->crtc[c]);
-			else
-				amdgpu_scanout_update(xf86_config->crtc[c]);
-		}
+	for (c = 0; c < xf86_config->num_crtc; c++) {
+		if (info->tear_free)
+			amdgpu_scanout_flip(pScreen, info, xf86_config->crtc[c]);
+		else if (info->shadow_primary ||
+				 xf86_config->crtc[c]->driverIsPerformingTransform)
+			amdgpu_scanout_update(xf86_config->crtc[c]);
 	}
 
 	if (info->use_glamor)
