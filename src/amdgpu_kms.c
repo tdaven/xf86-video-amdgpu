@@ -396,12 +396,6 @@ amdgpu_scanout_flip_abort(ScrnInfoPtr scrn, void *event_data)
 }
 
 static void
-amdgpu_scanout_flip_handler(ScrnInfoPtr scrn, uint32_t frame, uint64_t usec, void *event_data)
-{
-	amdgpu_scanout_flip_abort(scrn, event_data);
-}
-
-static void
 amdgpu_scanout_flip(ScreenPtr pScreen, AMDGPUInfoPtr info,
 					xf86CrtcPtr xf86_crtc)
 {
@@ -421,8 +415,7 @@ amdgpu_scanout_flip(ScreenPtr pScreen, AMDGPUInfoPtr info,
 	scrn = xf86_crtc->scrn;
 	drm_queue_entry = amdgpu_drm_queue_alloc(scrn, AMDGPU_DRM_QUEUE_CLIENT_DEFAULT,
 						 AMDGPU_DRM_QUEUE_ID_DEFAULT,
-						 drmmode_crtc,
-						 amdgpu_scanout_flip_handler,
+						 drmmode_crtc, NULL,
 						 amdgpu_scanout_flip_abort);
 	if (!drm_queue_entry) {
 		xf86DrvMsg(scrn->scrnIndex, X_WARNING,
