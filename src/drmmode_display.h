@@ -97,6 +97,8 @@ typedef struct {
 
 	/* Modeset needed for DPMS on */
 	Bool need_modeset;
+	/* A flip is pending for this CRTC */
+	Bool flip_pending;
 } drmmode_crtc_private_rec, *drmmode_crtc_private_ptr;
 
 typedef struct {
