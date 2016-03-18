@@ -43,6 +43,10 @@
 #include "amdgpu_glamor.h"
 #include "amdgpu_pixmap.h"
 
+#ifdef AMDGPU_PIXMAP_SHARING
+#include <dri.h>
+#endif
+
 /* DPMS */
 #ifdef HAVE_XEXTPROTO_71
 #include <X11/extensions/dpmsconst.h>
@@ -1904,6 +1908,9 @@ Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int cpp)
 	int i, num_dvi = 0, num_hdmi = 0;
 	unsigned int crtcs_needed = 0;
 	drmModeResPtr mode_res;
+#ifdef AMDGPU_PIXMAP_SHARING
+	char *bus_id_string, *provider_name;
+#endif
 
 	xf86CrtcConfigInit(pScrn, &drmmode_xf86crtc_config_funcs);
 
@@ -1947,7 +1954,11 @@ Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int cpp)
 	drmmode_clones_init(pScrn, drmmode, mode_res);
 
 #ifdef AMDGPU_PIXMAP_SHARING
-	xf86ProviderSetup(pScrn, NULL, "amdgpu");
+	bus_id_string = DRICreatePCIBusID(info->PciInfo);
+	XNFasprintf(&provider_name, "%s @ %s", pScrn->chipset, bus_id_string);
+	free(bus_id_string);
+	xf86ProviderSetup(pScrn, NULL, provider_name);
+	free(provider_name);
 #endif
 
 	xf86InitialConfiguration(pScrn, TRUE);
