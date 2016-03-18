@@ -65,14 +65,10 @@ typedef struct {
 	void *event_data;
 	unsigned int fe_frame;
 	uint64_t fe_usec;
+	xf86CrtcPtr fe_crtc;
 	amdgpu_drm_handler_proc handler;
 	amdgpu_drm_abort_proc abort;
 } drmmode_flipdata_rec, *drmmode_flipdata_ptr;
-
-typedef struct {
-	drmmode_flipdata_ptr flipdata;
-	Bool dispatch_me;
-} drmmode_flipevtcarrier_rec, *drmmode_flipevtcarrier_ptr;
 
 struct drmmode_scanout {
 	struct amdgpu_buffer *bo;

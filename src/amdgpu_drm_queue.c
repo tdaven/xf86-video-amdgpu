@@ -42,7 +42,7 @@ struct amdgpu_drm_queue_entry {
 	uint64_t id;
 	void *data;
 	ClientPtr client;
-	ScrnInfoPtr scrn;
+	xf86CrtcPtr crtc;
 	amdgpu_drm_handler_proc handler;
 	amdgpu_drm_abort_proc abort;
 };
@@ -65,11 +65,11 @@ amdgpu_drm_queue_handler(int fd, unsigned int frame, unsigned int sec,
 		if (e == user_data) {
 			xorg_list_del(&e->list);
 			if (e->handler)
-				e->handler(e->scrn, frame,
+				e->handler(e->crtc, frame,
 					   (uint64_t)sec * 1000000 + usec,
 					   e->data);
 			else
-				e->abort(e->scrn, e->data);
+				e->abort(e->crtc, e->data);
 			free(e);
 			break;
 		}
@@ -81,7 +81,7 @@ amdgpu_drm_queue_handler(int fd, unsigned int frame, unsigned int sec,
  * appears, we've got data to pass to the handler from here
  */
 struct amdgpu_drm_queue_entry *
-amdgpu_drm_queue_alloc(ScrnInfoPtr scrn, ClientPtr client,
+amdgpu_drm_queue_alloc(xf86CrtcPtr crtc, ClientPtr client,
 		       uint64_t id, void *data,
 		       amdgpu_drm_handler_proc handler,
 		       amdgpu_drm_abort_proc abort)
@@ -93,7 +93,7 @@ amdgpu_drm_queue_alloc(ScrnInfoPtr scrn, ClientPtr client,
 		return NULL;
 
 	e->client = client;
-	e->scrn = scrn;
+	e->crtc = crtc;
 	e->id = id;
 	e->data = data;
 	e->handler = handler;
@@ -113,7 +113,7 @@ static void
 amdgpu_drm_abort_one(struct amdgpu_drm_queue_entry *e)
 {
 	xorg_list_del(&e->list);
-	e->abort(e->scrn, e->data);
+	e->abort(e->crtc, e->data);
 	free(e);
 }
 
@@ -181,7 +181,7 @@ amdgpu_drm_queue_close(ScrnInfoPtr scrn)
 	struct amdgpu_drm_queue_entry *e, *tmp;
 
 	xorg_list_for_each_entry_safe(e, tmp, &amdgpu_drm_queue, list) {
-		if (e->scrn == scrn)
+		if (e->crtc->scrn == scrn)
 			amdgpu_drm_abort_one(e);
 	}
 

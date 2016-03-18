@@ -524,19 +524,20 @@ xf86CrtcPtr amdgpu_dri2_drawable_crtc(DrawablePtr pDraw, Bool consider_disabled)
 }
 
 static void
-amdgpu_dri2_flip_event_abort(ScrnInfoPtr scrn, void *event_data)
+amdgpu_dri2_flip_event_abort(xf86CrtcPtr crtc, void *event_data)
 {
-	AMDGPUInfoPtr info = AMDGPUPTR(scrn);
+	AMDGPUInfoPtr info = AMDGPUPTR(crtc->scrn);
 
 	info->drmmode.dri2_flipping = FALSE;
 	free(event_data);
 }
 
 static void
-amdgpu_dri2_flip_event_handler(ScrnInfoPtr scrn, uint32_t frame, uint64_t usec,
+amdgpu_dri2_flip_event_handler(xf86CrtcPtr crtc, uint32_t frame, uint64_t usec,
 			       void *event_data)
 {
 	DRI2FrameEventPtr flip = event_data;
+	ScrnInfoPtr scrn = crtc->scrn;
 	unsigned tv_sec, tv_usec;
 	DrawablePtr drawable;
 	ScreenPtr screen;
@@ -548,9 +549,7 @@ amdgpu_dri2_flip_event_handler(ScrnInfoPtr scrn, uint32_t frame, uint64_t usec,
 	if (status != Success)
 		goto abort;
 
-	if (!flip->crtc)
-		goto abort;
-	frame += amdgpu_get_msc_delta(drawable, flip->crtc);
+	frame += amdgpu_get_msc_delta(drawable, crtc);
 
 	screen = scrn->pScreen;
 	pixmap = screen->GetScreenPixmap(screen);
@@ -589,21 +588,20 @@ amdgpu_dri2_flip_event_handler(ScrnInfoPtr scrn, uint32_t frame, uint64_t usec,
 	}
 
 abort:
-	amdgpu_dri2_flip_event_abort(scrn, event_data);
+	amdgpu_dri2_flip_event_abort(crtc, event_data);
 }
 
 static Bool
-amdgpu_dri2_schedule_flip(ScrnInfoPtr scrn, ClientPtr client,
+amdgpu_dri2_schedule_flip(xf86CrtcPtr crtc, ClientPtr client,
 			  DrawablePtr draw, DRI2BufferPtr front,
 			  DRI2BufferPtr back, DRI2SwapEventPtr func,
 			  void *data, unsigned int target_msc)
 {
+	ScrnInfoPtr scrn = crtc->scrn;
 	AMDGPUInfoPtr info = AMDGPUPTR(scrn);
 	struct dri2_buffer_priv *back_priv;
 	DRI2FrameEventPtr flip_info;
-	/* Main crtc for this drawable shall finally deliver pageflip event. */
-	xf86CrtcPtr crtc = amdgpu_dri2_drawable_crtc(draw, FALSE);
-	int ref_crtc_hw_id = crtc ? drmmode_get_crtc_id(crtc) : -1;
+	int ref_crtc_hw_id = drmmode_get_crtc_id(crtc);
 
 	flip_info = calloc(1, sizeof(DRI2FrameEventRec));
 	if (!flip_info)
@@ -752,7 +750,7 @@ amdgpu_dri2_exchange_buffers(DrawablePtr draw, DRI2BufferPtr front,
 	DamageRegionProcessPending(&front_priv->pixmap->drawable);
 }
 
-static void amdgpu_dri2_frame_event_abort(ScrnInfoPtr scrn, void *event_data)
+static void amdgpu_dri2_frame_event_abort(xf86CrtcPtr crtc, void *event_data)
 {
 	DRI2FrameEventPtr event = event_data;
 
@@ -763,30 +761,28 @@ static void amdgpu_dri2_frame_event_abort(ScrnInfoPtr scrn, void *event_data)
 	free(event);
 }
 
-static void amdgpu_dri2_frame_event_handler(ScrnInfoPtr scrn, uint32_t seq,
+static void amdgpu_dri2_frame_event_handler(xf86CrtcPtr crtc, uint32_t seq,
 					    uint64_t usec, void *event_data)
 {
 	DRI2FrameEventPtr event = event_data;
+	ScrnInfoPtr scrn = crtc->scrn;
 	DrawablePtr drawable;
 	int status;
 	int swap_type;
 	BoxRec box;
 	RegionRec region;
 
-	if (!event->crtc)
-		goto cleanup;
-
 	status = dixLookupDrawable(&drawable, event->drawable_id, serverClient,
 				   M_ANY, DixWriteAccess);
 	if (status != Success)
 		goto cleanup;
 
-	seq += amdgpu_get_msc_delta(drawable, event->crtc);
+	seq += amdgpu_get_msc_delta(drawable, crtc);
 
 	switch (event->type) {
 	case DRI2_FLIP:
 		if (can_flip(scrn, drawable, event->front, event->back) &&
-		    amdgpu_dri2_schedule_flip(scrn,
+		    amdgpu_dri2_schedule_flip(crtc,
 					      event->client,
 					      drawable,
 					      event->front,
@@ -833,7 +829,7 @@ static void amdgpu_dri2_frame_event_handler(ScrnInfoPtr scrn, uint32_t seq,
 	}
 
 cleanup:
-	amdgpu_dri2_frame_event_abort(scrn, event_data);
+	amdgpu_dri2_frame_event_abort(crtc, event_data);
 }
 
 drmVBlankSeqType amdgpu_populate_vbl_request_type(xf86CrtcPtr crtc)
@@ -990,7 +986,7 @@ CARD32 amdgpu_dri2_deferred_event(OsTimerPtr timer, CARD32 now, pointer data)
 			amdgpu_drm_queue_handler(pAMDGPUEnt->fd, 0, 0, 0,
 						 event_info->drm_queue);
 		else
-			amdgpu_dri2_frame_event_handler(scrn, 0, 0, data);
+			amdgpu_dri2_frame_event_handler(crtc, 0, 0, data);
 		return 0;
 	}
 	/*
@@ -1006,7 +1002,7 @@ CARD32 amdgpu_dri2_deferred_event(OsTimerPtr timer, CARD32 now, pointer data)
 		amdgpu_drm_queue_handler(pAMDGPUEnt->fd, frame, drm_now / 1000000,
 					 drm_now % 1000000, event_info->drm_queue);
 	else
-		amdgpu_dri2_frame_event_handler(scrn, frame, drm_now, data);
+		amdgpu_dri2_frame_event_handler(crtc, frame, drm_now, data);
 	return 0;
 }
 
@@ -1091,7 +1087,7 @@ static int amdgpu_dri2_schedule_wait_msc(ClientPtr client, DrawablePtr draw,
 	current_msc = vbl.reply.sequence + msc_delta;
 	current_msc &= 0xffffffff;
 
-	wait = amdgpu_drm_queue_alloc(scrn, client, AMDGPU_DRM_QUEUE_ID_DEFAULT,
+	wait = amdgpu_drm_queue_alloc(crtc, client, AMDGPU_DRM_QUEUE_ID_DEFAULT,
 				      wait_info, amdgpu_dri2_frame_event_handler,
 				      amdgpu_dri2_frame_event_abort);
 	if (!wait) {
@@ -1239,7 +1235,7 @@ static int amdgpu_dri2_schedule_swap(ClientPtr client, DrawablePtr draw,
 	swap_info->back = back;
 	swap_info->crtc = crtc;
 
-	swap = amdgpu_drm_queue_alloc(scrn, client, AMDGPU_DRM_QUEUE_ID_DEFAULT,
+	swap = amdgpu_drm_queue_alloc(crtc, client, AMDGPU_DRM_QUEUE_ID_DEFAULT,
 				      swap_info, amdgpu_dri2_frame_event_handler,
 				      amdgpu_dri2_frame_event_abort);
 	if (!swap) {

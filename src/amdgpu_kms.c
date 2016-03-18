@@ -309,21 +309,20 @@ amdgpu_scanout_do_update(xf86CrtcPtr xf86_crtc, int scanout_id)
 }
 
 static void
-amdgpu_scanout_update_abort(ScrnInfoPtr scrn, void *event_data)
+amdgpu_scanout_update_abort(xf86CrtcPtr crtc, void *event_data)
 {
-	xf86CrtcPtr xf86_crtc = event_data;
-	drmmode_crtc_private_ptr drmmode_crtc = xf86_crtc->driver_private;
+	drmmode_crtc_private_ptr drmmode_crtc = event_data;
 
 	drmmode_crtc->scanout_update_pending = FALSE;
 }
 
 void
-amdgpu_scanout_update_handler(ScrnInfoPtr scrn, uint32_t frame, uint64_t usec,
+amdgpu_scanout_update_handler(xf86CrtcPtr crtc, uint32_t frame, uint64_t usec,
 							  void *event_data)
 {
-	amdgpu_scanout_do_update(event_data, 0);
+	amdgpu_scanout_do_update(crtc, 0);
 
-	amdgpu_scanout_update_abort(scrn, event_data);
+	amdgpu_scanout_update_abort(crtc, event_data);
 }
 
 static void
@@ -360,9 +359,10 @@ amdgpu_scanout_update(xf86CrtcPtr xf86_crtc)
 		return;
 
 	scrn = xf86_crtc->scrn;
-	drm_queue_entry = amdgpu_drm_queue_alloc(scrn, AMDGPU_DRM_QUEUE_CLIENT_DEFAULT,
+	drm_queue_entry = amdgpu_drm_queue_alloc(xf86_crtc,
+						 AMDGPU_DRM_QUEUE_CLIENT_DEFAULT,
 						 AMDGPU_DRM_QUEUE_ID_DEFAULT,
-						 xf86_crtc,
+						 drmmode_crtc,
 						 amdgpu_scanout_update_handler,
 						 amdgpu_scanout_update_abort);
 	if (!drm_queue_entry) {
@@ -388,7 +388,7 @@ amdgpu_scanout_update(xf86CrtcPtr xf86_crtc)
 }
 
 static void
-amdgpu_scanout_flip_abort(ScrnInfoPtr scrn, void *event_data)
+amdgpu_scanout_flip_abort(xf86CrtcPtr crtc, void *event_data)
 {
 	drmmode_crtc_private_ptr drmmode_crtc = event_data;
 
@@ -413,7 +413,8 @@ amdgpu_scanout_flip(ScreenPtr pScreen, AMDGPUInfoPtr info,
 		return;
 
 	scrn = xf86_crtc->scrn;
-	drm_queue_entry = amdgpu_drm_queue_alloc(scrn, AMDGPU_DRM_QUEUE_CLIENT_DEFAULT,
+	drm_queue_entry = amdgpu_drm_queue_alloc(xf86_crtc,
+						 AMDGPU_DRM_QUEUE_CLIENT_DEFAULT,
 						 AMDGPU_DRM_QUEUE_ID_DEFAULT,
 						 drmmode_crtc, NULL,
 						 amdgpu_scanout_flip_abort);
