@@ -746,11 +746,8 @@ done:
 		crtc->y = saved_y;
 		crtc->rotation = saved_rotation;
 		crtc->mode = saved_mode;
-	}
-#if defined(XF86_CRTC_VERSION) && XF86_CRTC_VERSION >= 3
-	else
+	} else
 		crtc->active = TRUE;
-#endif
 
 	return ret;
 }
