@@ -615,7 +615,6 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 		crtc->x = x;
 		crtc->y = y;
 		crtc->rotation = rotation;
-		crtc->transformPresent = FALSE;
 
 		output_ids = calloc(sizeof(uint32_t), xf86_config->num_output);
 		if (!output_ids) {
@@ -787,6 +786,20 @@ static void drmmode_load_cursor_argb(xf86CrtcPtr crtc, CARD32 * image)
 	}
 }
 
+#if XORG_VERSION_CURRENT >= XORG_VERSION_NUMERIC(1,15,99,903,0)
+
+static Bool drmmode_load_cursor_argb_check(xf86CrtcPtr crtc, CARD32 * image)
+{
+	/* Fall back to SW cursor if the CRTC is transformed */
+	if (crtc->transformPresent)
+		return FALSE;
+
+	drmmode_load_cursor_argb(crtc, image);
+	return TRUE;
+}
+
+#endif
+
 static void drmmode_hide_cursor(xf86CrtcPtr crtc)
 {
 	ScrnInfoPtr pScrn = crtc->scrn;
@@ -951,6 +964,9 @@ static xf86CrtcFuncsRec drmmode_crtc_funcs = {
 	.show_cursor = drmmode_show_cursor,
 	.hide_cursor = drmmode_hide_cursor,
 	.load_cursor_argb = drmmode_load_cursor_argb,
+#if XORG_VERSION_CURRENT >= XORG_VERSION_NUMERIC(1,15,99,903,0)
+	.load_cursor_argb_check = drmmode_load_cursor_argb_check,
+#endif
 
 	.gamma_set = drmmode_crtc_gamma_set,
 	.shadow_create = drmmode_crtc_shadow_create,
