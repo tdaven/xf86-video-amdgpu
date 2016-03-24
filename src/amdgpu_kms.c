@@ -536,9 +536,9 @@ static void AMDGPUBlockHandler_oneshot(BLOCKHANDLER_ARGS_DECL)
 	ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
 	AMDGPUInfoPtr info = AMDGPUPTR(pScrn);
 
-	drmmode_set_desired_modes(pScrn, &info->drmmode, TRUE);
-
 	AMDGPUBlockHandler_KMS(BLOCKHANDLER_ARGS);
+
+	drmmode_set_desired_modes(pScrn, &info->drmmode, TRUE);
 }
 
 static void
