@@ -302,6 +302,7 @@ amdgpu_scanout_do_update(xf86CrtcPtr xf86_crtc, int scanout_id)
 					      pDraw->height))
 		return FALSE;
 
+#if XF86_CRTC_VERSION >= 4
 	if (xf86_crtc->driverIsPerformingTransform) {
 		SourceValidateProcPtr SourceValidate = pScreen->SourceValidate;
 		PictFormatPtr format = PictureWindowFormat(pScreen->root);
@@ -324,13 +325,13 @@ amdgpu_scanout_do_update(xf86CrtcPtr xf86_crtc, int scanout_id)
 		if (!dst) {
 			ErrorF("Failed to create destination picture for transformed scanout "
 			       "update\n");
-			goto out;
+			goto free_src;
 		}
 		error = SetPictureTransform(src, &xf86_crtc->crtc_to_framebuffer);
 		if (error) {
 			ErrorF("SetPictureTransform failed for transformed scanout "
 			       "update\n");
-			goto out;
+			goto free_dst;
 		}
 
 		if (xf86_crtc->filter)
@@ -351,9 +352,14 @@ amdgpu_scanout_do_update(xf86CrtcPtr xf86_crtc, int scanout_id)
 				 extents.y2 - extents.y1);
 		pScreen->SourceValidate = SourceValidate;
 
-		FreePicture(src, None);
+ free_dst:
 		FreePicture(dst, None);
-	} else {
+ free_src:
+		FreePicture(src, None);
+	} else
+ out:
+#endif /* XF86_CRTC_VERSION >= 4 */
+	{
 		GCPtr gc = GetScratchGC(pDraw->depth, pScreen);
 
 		ValidateGC(pDraw, gc);
@@ -367,7 +373,6 @@ amdgpu_scanout_do_update(xf86CrtcPtr xf86_crtc, int scanout_id)
 
 	amdgpu_glamor_flush(xf86_crtc->scrn);
 
-out:
 	return TRUE;
 }
 
@@ -517,8 +522,11 @@ static void AMDGPUBlockHandler_KMS(BLOCKHANDLER_ARGS_DECL)
 	for (c = 0; c < xf86_config->num_crtc; c++) {
 		if (info->tear_free)
 			amdgpu_scanout_flip(pScreen, info, xf86_config->crtc[c]);
-		else if (info->shadow_primary ||
-				 xf86_config->crtc[c]->driverIsPerformingTransform)
+		else if (info->shadow_primary
+#if XF86_CRTC_VERSION >= 4
+				 || xf86_config->crtc[c]->driverIsPerformingTransform
+#endif
+			)
 			amdgpu_scanout_update(xf86_config->crtc[c]);
 	}
 

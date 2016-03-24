@@ -41,6 +41,7 @@
 #include "drmmode_display.h"
 #include "amdgpu_bo_helper.h"
 #include "amdgpu_glamor.h"
+#include "amdgpu_list.h"
 #include "amdgpu_pixmap.h"
 
 #ifdef AMDGPU_PIXMAP_SHARING
@@ -579,16 +580,20 @@ drmmode_can_use_hw_cursor(xf86CrtcPtr crtc)
 	if (crtc->transformPresent)
 		return FALSE;
 
+#if XF86_CRTC_VERSION >= 4
 	/* Xorg doesn't correctly handle cursor position transform in the
 	 * rotation case
 	 */
 	if (crtc->driverIsPerformingTransform &&
 	    (crtc->rotation & 0xf) != RR_Rotate_0)
 		return FALSE;
+#endif
 
+#ifdef AMDGPU_PIXMAP_SHARING
 	/* HW cursor not supported yet with RandR 1.4 multihead */
 	if (!xorg_list_is_empty(&crtc->scrn->pScreen->pixmap_dirty_list))
 		return FALSE;
+#endif
 
 	return TRUE;
 }
@@ -715,8 +720,11 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 
 			drmmode_crtc_scanout_destroy(drmmode, &drmmode_crtc->scanout[0]);
 			drmmode_crtc_scanout_destroy(drmmode, &drmmode_crtc->scanout[1]);
-		} else if (info->tear_free || info->shadow_primary ||
-			   crtc->driverIsPerformingTransform) {
+		} else if (info->tear_free ||
+#if XF86_CRTC_VERSION >= 4
+			   crtc->driverIsPerformingTransform ||
+#endif
+			   info->shadow_primary) {
 			for (i = 0; i < (info->tear_free ? 2 : 1); i++) {
 				drmmode_crtc_scanout_create(crtc,
 							    &drmmode_crtc->scanout[i],
@@ -2410,7 +2418,12 @@ restart_destroy:
 	}
 
 	if (changed) {
+#if XORG_VERSION_CURRENT >= XORG_VERSION_NUMERIC(1,14,99,2,0)
 		RRSetChanged(xf86ScrnToScreen(scrn));
+#else
+		rrScrPrivPtr rrScrPriv = rrGetScrPriv(scrn->pScreen);
+		rrScrPriv->changed = TRUE;
+#endif
 		RRTellChanged(xf86ScrnToScreen(scrn));
 	}
 
