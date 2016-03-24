@@ -39,19 +39,11 @@ struct amdgpu_pixmap {
 	uint32_t handle;
 };
 
-#if HAS_DEVPRIVATEKEYREC
 extern DevPrivateKeyRec amdgpu_pixmap_index;
-#else
-extern int amdgpu_pixmap_index;
-#endif
 
 static inline struct amdgpu_pixmap *amdgpu_get_pixmap_private(PixmapPtr pixmap)
 {
-#if HAS_DEVPRIVATEKEYREC
 	return dixGetPrivate(&pixmap->devPrivates, &amdgpu_pixmap_index);
-#else
-	return dixLookupPrivate(&pixmap->devPrivates, &amdgpu_pixmap_index);
-#endif
 }
 
 static inline void amdgpu_set_pixmap_private(PixmapPtr pixmap,

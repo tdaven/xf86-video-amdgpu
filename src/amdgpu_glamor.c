@@ -38,11 +38,7 @@
 
 #include <GL/gl.h>
 
-#if HAS_DEVPRIVATEKEYREC
 DevPrivateKeyRec amdgpu_pixmap_index;
-#else
-int amdgpu_pixmap_index;
-#endif
 
 void amdgpu_glamor_exchange_buffers(PixmapPtr src, PixmapPtr dst)
 {
@@ -355,11 +351,7 @@ Bool amdgpu_glamor_init(ScreenPtr screen)
 			   "Failed to initialize textured pixmap of screen for glamor.\n");
 		return FALSE;
 	}
-#if HAS_DIXREGISTERPRIVATEKEY
 	if (!dixRegisterPrivateKey(&amdgpu_pixmap_index, PRIVATE_PIXMAP, 0))
-#else
-	if (!dixRequestPrivate(&amdgpu_pixmap_index, 0))
-#endif
 		return FALSE;
 
 	if (info->shadow_primary)
