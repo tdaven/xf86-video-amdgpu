@@ -88,7 +88,6 @@ typedef struct {
 	int fd_wakeup_ref;
 	unsigned int assigned_crtcs;
 	struct xf86_platform_device *platform_dev;
-	char *render_node;
 } AMDGPUEntRec, *AMDGPUEntPtr;
 
 extern const OptionInfoRec *AMDGPUOptionsWeak(void);
