@@ -43,14 +43,12 @@ typedef void (*amdgpu_drm_abort_proc)(xf86CrtcPtr crtc, void *data);
 void amdgpu_drm_queue_handler(int fd, unsigned int frame,
 			      unsigned int tv_sec, unsigned int tv_usec,
 			      void *user_ptr);
-struct amdgpu_drm_queue_entry *amdgpu_drm_queue_alloc(xf86CrtcPtr crtc,
-						      ClientPtr client,
-						      uint64_t id,
-						      void *data,
-						      amdgpu_drm_handler_proc handler,
-						      amdgpu_drm_abort_proc abort);
+uintptr_t amdgpu_drm_queue_alloc(xf86CrtcPtr crtc, ClientPtr client,
+				 uint64_t id, void *data,
+				 amdgpu_drm_handler_proc handler,
+				 amdgpu_drm_abort_proc abort);
 void amdgpu_drm_abort_client(ClientPtr client);
-void amdgpu_drm_abort_entry(struct amdgpu_drm_queue_entry *entry);
+void amdgpu_drm_abort_entry(uintptr_t seq);
 void amdgpu_drm_abort_id(uint64_t id);
 void amdgpu_drm_queue_init();
 void amdgpu_drm_queue_close(ScrnInfoPtr scrn);

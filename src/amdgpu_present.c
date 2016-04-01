@@ -157,7 +157,7 @@ amdgpu_present_queue_vblank(RRCrtcPtr crtc, uint64_t event_id, uint64_t msc)
 	AMDGPUEntPtr pAMDGPUEnt = AMDGPUEntPriv(scrn);
 	int crtc_id = drmmode_get_crtc_id(xf86_crtc);
 	struct amdgpu_present_vblank_event *event;
-	struct amdgpu_drm_queue_entry *queue;
+	uintptr_t drm_queue_seq;
 	drmVBlank vbl;
 	int ret;
 
@@ -165,24 +165,25 @@ amdgpu_present_queue_vblank(RRCrtcPtr crtc, uint64_t event_id, uint64_t msc)
 	if (!event)
 		return BadAlloc;
 	event->event_id = event_id;
-	queue = amdgpu_drm_queue_alloc(xf86_crtc, AMDGPU_DRM_QUEUE_CLIENT_DEFAULT,
-				       event_id, event,
-				       amdgpu_present_vblank_handler,
-				       amdgpu_present_vblank_abort);
-	if (!queue) {
+	drm_queue_seq = amdgpu_drm_queue_alloc(xf86_crtc,
+					       AMDGPU_DRM_QUEUE_CLIENT_DEFAULT,
+					       event_id, event,
+					       amdgpu_present_vblank_handler,
+					       amdgpu_present_vblank_abort);
+	if (!drm_queue_seq) {
 		free(event);
 		return BadAlloc;
 	}
 
 	vbl.request.type = DRM_VBLANK_ABSOLUTE | DRM_VBLANK_EVENT | crtc_select(crtc_id);
 	vbl.request.sequence = msc;
-	vbl.request.signal = (unsigned long)queue;
+	vbl.request.signal = drm_queue_seq;
 	for (;;) {
 		ret = drmWaitVBlank(pAMDGPUEnt->fd, &vbl);
 		if (!ret)
 			break;
 		if (errno != EBUSY || !amdgpu_present_flush_drm_events(screen)) {
-			amdgpu_drm_abort_entry(queue);
+			amdgpu_drm_abort_entry(drm_queue_seq);
 			return BadAlloc;
 		}
 	}

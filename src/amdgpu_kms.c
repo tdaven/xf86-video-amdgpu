@@ -397,7 +397,7 @@ static void
 amdgpu_scanout_update(xf86CrtcPtr xf86_crtc)
 {
 	drmmode_crtc_private_ptr drmmode_crtc = xf86_crtc->driver_private;
-	struct amdgpu_drm_queue_entry *drm_queue_entry;
+	uintptr_t drm_queue_seq;
 	ScrnInfoPtr scrn;
 	AMDGPUEntPtr pAMDGPUEnt;
 	drmVBlank vbl;
@@ -427,13 +427,13 @@ amdgpu_scanout_update(xf86CrtcPtr xf86_crtc)
 		return;
 
 	scrn = xf86_crtc->scrn;
-	drm_queue_entry = amdgpu_drm_queue_alloc(xf86_crtc,
-						 AMDGPU_DRM_QUEUE_CLIENT_DEFAULT,
-						 AMDGPU_DRM_QUEUE_ID_DEFAULT,
-						 drmmode_crtc,
-						 amdgpu_scanout_update_handler,
-						 amdgpu_scanout_update_abort);
-	if (!drm_queue_entry) {
+	drm_queue_seq = amdgpu_drm_queue_alloc(xf86_crtc,
+					       AMDGPU_DRM_QUEUE_CLIENT_DEFAULT,
+					       AMDGPU_DRM_QUEUE_ID_DEFAULT,
+					       drmmode_crtc,
+					       amdgpu_scanout_update_handler,
+					       amdgpu_scanout_update_abort);
+	if (!drm_queue_seq) {
 		xf86DrvMsg(scrn->scrnIndex, X_WARNING,
 			   "amdgpu_drm_queue_alloc failed for scanout update\n");
 		return;
@@ -443,12 +443,12 @@ amdgpu_scanout_update(xf86CrtcPtr xf86_crtc)
 	vbl.request.type = DRM_VBLANK_RELATIVE | DRM_VBLANK_EVENT;
 	vbl.request.type |= amdgpu_populate_vbl_request_type(xf86_crtc);
 	vbl.request.sequence = 1;
-	vbl.request.signal = (unsigned long)drm_queue_entry;
+	vbl.request.signal = drm_queue_seq;
 	if (drmWaitVBlank(pAMDGPUEnt->fd, &vbl)) {
 		xf86DrvMsg(scrn->scrnIndex, X_WARNING,
 			   "drmWaitVBlank failed for scanout update: %s\n",
 			   strerror(errno));
-		amdgpu_drm_abort_entry(drm_queue_entry);
+		amdgpu_drm_abort_entry(drm_queue_seq);
 		return;
 	}
 
@@ -471,7 +471,7 @@ amdgpu_scanout_flip(ScreenPtr pScreen, AMDGPUInfoPtr info,
 	drmmode_crtc_private_ptr drmmode_crtc = xf86_crtc->driver_private;
 	ScrnInfoPtr scrn;
 	AMDGPUEntPtr pAMDGPUEnt;
-	struct amdgpu_drm_queue_entry *drm_queue_entry;
+	uintptr_t drm_queue_seq;
 	unsigned scanout_id;
 
 	if (drmmode_crtc->scanout_update_pending)
@@ -482,12 +482,12 @@ amdgpu_scanout_flip(ScreenPtr pScreen, AMDGPUInfoPtr info,
 		return;
 
 	scrn = xf86_crtc->scrn;
-	drm_queue_entry = amdgpu_drm_queue_alloc(xf86_crtc,
-						 AMDGPU_DRM_QUEUE_CLIENT_DEFAULT,
-						 AMDGPU_DRM_QUEUE_ID_DEFAULT,
-						 drmmode_crtc, NULL,
-						 amdgpu_scanout_flip_abort);
-	if (!drm_queue_entry) {
+	drm_queue_seq = amdgpu_drm_queue_alloc(xf86_crtc,
+					       AMDGPU_DRM_QUEUE_CLIENT_DEFAULT,
+					       AMDGPU_DRM_QUEUE_ID_DEFAULT,
+					       drmmode_crtc, NULL,
+					       amdgpu_scanout_flip_abort);
+	if (!drm_queue_seq) {
 		xf86DrvMsg(scrn->scrnIndex, X_WARNING,
 			   "Allocating DRM event queue entry failed.\n");
 		return;
@@ -496,7 +496,7 @@ amdgpu_scanout_flip(ScreenPtr pScreen, AMDGPUInfoPtr info,
 	pAMDGPUEnt = AMDGPUEntPriv(scrn);
 	if (drmModePageFlip(pAMDGPUEnt->fd, drmmode_crtc->mode_crtc->crtc_id,
 			    drmmode_crtc->scanout[scanout_id].fb_id,
-			    DRM_MODE_PAGE_FLIP_EVENT, drm_queue_entry)) {
+			    DRM_MODE_PAGE_FLIP_EVENT, (void*)drm_queue_seq)) {
 		xf86DrvMsg(scrn->scrnIndex, X_WARNING, "flip queue failed in %s: %s\n",
 			   __func__, strerror(errno));
 		return;

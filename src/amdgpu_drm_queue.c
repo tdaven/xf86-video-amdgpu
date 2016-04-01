@@ -40,6 +40,7 @@
 struct amdgpu_drm_queue_entry {
 	struct xorg_list list;
 	uint64_t id;
+	uintptr_t seq;
 	void *data;
 	ClientPtr client;
 	xf86CrtcPtr crtc;
@@ -49,6 +50,7 @@ struct amdgpu_drm_queue_entry {
 
 static int amdgpu_drm_queue_refcnt;
 static struct xorg_list amdgpu_drm_queue;
+static uintptr_t amdgpu_drm_queue_seq;
 
 
 /*
@@ -58,11 +60,11 @@ void
 amdgpu_drm_queue_handler(int fd, unsigned int frame, unsigned int sec,
 			 unsigned int usec, void *user_ptr)
 {
-	struct amdgpu_drm_queue_entry *user_data = user_ptr;
+	uintptr_t seq = (uintptr_t)user_ptr;
 	struct amdgpu_drm_queue_entry *e, *tmp;
 
 	xorg_list_for_each_entry_safe(e, tmp, &amdgpu_drm_queue, list) {
-		if (e == user_data) {
+		if (e->seq == seq) {
 			xorg_list_del(&e->list);
 			if (e->handler)
 				e->handler(e->crtc, frame,
@@ -80,7 +82,7 @@ amdgpu_drm_queue_handler(int fd, unsigned int frame, unsigned int sec,
  * Enqueue a potential drm response; when the associated response
  * appears, we've got data to pass to the handler from here
  */
-struct amdgpu_drm_queue_entry *
+uintptr_t
 amdgpu_drm_queue_alloc(xf86CrtcPtr crtc, ClientPtr client,
 		       uint64_t id, void *data,
 		       amdgpu_drm_handler_proc handler,
@@ -92,6 +94,9 @@ amdgpu_drm_queue_alloc(xf86CrtcPtr crtc, ClientPtr client,
 	if (!e)
 		return NULL;
 
+	if (!amdgpu_drm_queue_seq)
+		amdgpu_drm_queue_seq = 1;
+	e->seq = amdgpu_drm_queue_seq++;
 	e->client = client;
 	e->crtc = crtc;
 	e->id = id;
@@ -101,7 +106,7 @@ amdgpu_drm_queue_alloc(xf86CrtcPtr crtc, ClientPtr client,
 
 	xorg_list_add(&e->list, &amdgpu_drm_queue);
 
-	return e;
+	return e->seq;
 }
 
 /*
@@ -139,9 +144,16 @@ amdgpu_drm_abort_client(ClientPtr client)
  * Abort specific drm queue entry
  */
 void
-amdgpu_drm_abort_entry(struct amdgpu_drm_queue_entry *entry)
+amdgpu_drm_abort_entry(uintptr_t seq)
 {
-	amdgpu_drm_abort_one(entry);
+	struct amdgpu_drm_queue_entry *e, *tmp;
+
+	xorg_list_for_each_entry_safe(e, tmp, &amdgpu_drm_queue, list) {
+		if (e->seq == seq) {
+			amdgpu_drm_abort_one(e);
+			break;
+		}
+	}
 }
 
 /*
