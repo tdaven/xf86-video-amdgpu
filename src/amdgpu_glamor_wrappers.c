@@ -148,10 +148,11 @@ amdgpu_glamor_finish_access_cpu(PixmapPtr pixmap)
  */
 
 static Bool
-amdgpu_glamor_use_gpu(PixmapPtr pixmap)
+amdgpu_glamor_use_gpu(PixmapPtr pixmap, struct amdgpu_pixmap *priv)
 {
 	return (pixmap->usage_hint &
-		(AMDGPU_CREATE_PIXMAP_SCANOUT | AMDGPU_CREATE_PIXMAP_DRI2)) != 0;
+		(AMDGPU_CREATE_PIXMAP_SCANOUT | AMDGPU_CREATE_PIXMAP_DRI2)) != 0 ||
+		(priv && !priv->bo);
 }
 
 static Bool
@@ -432,7 +433,7 @@ amdgpu_glamor_poly_fill_rect(DrawablePtr pDrawable, GCPtr pGC,
 	PixmapPtr pixmap = get_drawable_pixmap(pDrawable);
 	struct amdgpu_pixmap *priv = amdgpu_get_pixmap_private(pixmap);
 
-	if ((info->force_accel || amdgpu_glamor_use_gpu(pixmap)) &&
+	if ((info->force_accel || amdgpu_glamor_use_gpu(pixmap, priv)) &&
 	    amdgpu_glamor_prepare_access_gpu(priv)) {
 		info->glamor.SavedPolyFillRect(pDrawable, pGC, nrect, prect);
 		amdgpu_glamor_finish_access_gpu_rw(info, priv);
@@ -536,8 +537,8 @@ amdgpu_glamor_copy_area(DrawablePtr pSrcDrawable, DrawablePtr pDstDrawable,
 	struct amdgpu_pixmap *dst_priv = amdgpu_get_pixmap_private(dst_pixmap);
 	RegionPtr ret = NULL;
 
-	if (amdgpu_glamor_use_gpu(dst_pixmap) ||
-	    amdgpu_glamor_use_gpu(src_pixmap)) {
+	if (amdgpu_glamor_use_gpu(dst_pixmap, dst_priv) ||
+	    amdgpu_glamor_use_gpu(src_pixmap, src_priv)) {
 		if (!amdgpu_glamor_prepare_access_gpu(dst_priv))
 			goto fallback;
 		if (src_priv != dst_priv &&

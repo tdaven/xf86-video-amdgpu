@@ -135,8 +135,12 @@ static PixmapPtr amdgpu_dri3_pixmap_from_fd(ScreenPtr screen,
 	if (AMDGPUPTR(xf86ScreenToScrn(screen))->use_glamor) {
 		pixmap = glamor_pixmap_from_fd(screen, fd, width, height,
 					       stride, depth, bpp);
-		if (pixmap)
+		if (pixmap) {
+			struct amdgpu_pixmap *priv = calloc(1, sizeof(*priv));
+
+			amdgpu_set_pixmap_private(pixmap, priv);
 			return pixmap;
+		}
 	}
 #endif
 
