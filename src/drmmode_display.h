@@ -121,6 +121,13 @@ typedef struct {
 	int enc_clone_mask;
 } drmmode_output_private_rec, *drmmode_output_private_ptr;
 
+
+enum drmmode_flip_sync {
+    FLIP_VSYNC,
+    FLIP_ASYNC,
+};
+
+
 extern Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int cpp);
 extern void drmmode_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
 extern void drmmode_fini(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
@@ -144,7 +151,8 @@ extern int drmmode_get_pitch_align(ScrnInfoPtr scrn, int bpe);
 Bool amdgpu_do_pageflip(ScrnInfoPtr scrn, ClientPtr client,
 			PixmapPtr new_front, uint64_t id, void *data,
 			int ref_crtc_hw_id, amdgpu_drm_handler_proc handler,
-			amdgpu_drm_abort_proc abort);
+			amdgpu_drm_abort_proc abort,
+			enum drmmode_flip_sync flip_sync);
 int drmmode_crtc_get_ust_msc(xf86CrtcPtr crtc, CARD64 *ust, CARD64 *msc);
 int drmmode_get_current_ust(int drm_fd, CARD64 * ust);
 

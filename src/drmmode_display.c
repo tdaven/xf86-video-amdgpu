@@ -2495,7 +2495,8 @@ void drmmode_uevent_fini(ScrnInfoPtr scrn, drmmode_ptr drmmode)
 Bool amdgpu_do_pageflip(ScrnInfoPtr scrn, ClientPtr client,
 			PixmapPtr new_front, uint64_t id, void *data,
 			int ref_crtc_hw_id, amdgpu_drm_handler_proc handler,
-			amdgpu_drm_abort_proc abort)
+			amdgpu_drm_abort_proc abort,
+			enum drmmode_flip_sync flip_sync)
 {
 	AMDGPUEntPtr pAMDGPUEnt = AMDGPUEntPriv(scrn);
 	xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
@@ -2503,6 +2504,7 @@ Bool amdgpu_do_pageflip(ScrnInfoPtr scrn, ClientPtr client,
 	drmmode_crtc_private_ptr drmmode_crtc = config->crtc[0]->driver_private;
 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
 	int i;
+	uint32_t flip_flags = DRM_MODE_PAGE_FLIP_EVENT;
 	drmmode_flipdata_ptr flipdata;
 	uintptr_t drm_queue_seq = 0;
 	uint32_t new_front_handle;
@@ -2544,6 +2546,9 @@ Bool amdgpu_do_pageflip(ScrnInfoPtr scrn, ClientPtr client,
 	flipdata->handler = handler;
 	flipdata->abort = abort;
 
+	if (flip_sync == FLIP_ASYNC)
+		flip_flags |= DRM_MODE_PAGE_FLIP_ASYNC;
+
 	for (i = 0; i < config->num_crtc; i++) {
 		crtc = config->crtc[i];
 
@@ -2570,7 +2575,7 @@ Bool amdgpu_do_pageflip(ScrnInfoPtr scrn, ClientPtr client,
 		}
 
 		if (drmModePageFlip(pAMDGPUEnt->fd, drmmode_crtc->mode_crtc->crtc_id,
-				    drmmode->fb_id, DRM_MODE_PAGE_FLIP_EVENT,
+				    drmmode->fb_id, flip_flags,
 				    (void*)drm_queue_seq)) {
 			xf86DrvMsg(scrn->scrnIndex, X_WARNING,
 				   "flip queue failed: %s\n", strerror(errno));
