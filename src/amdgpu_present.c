@@ -233,9 +233,6 @@ amdgpu_present_check_flip(RRCrtcPtr crtc, WindowPtr window, PixmapPtr pixmap,
 	if (info->hwcursor_disabled)
 		return FALSE;
 
-	if (!sync_flip)
-		return FALSE;
-
 	if (info->drmmode.dri2_flipping)
 		return FALSE;
 
@@ -312,7 +309,7 @@ amdgpu_present_flip(RRCrtcPtr crtc, uint64_t event_id, uint64_t target_msc,
 				 pixmap, event_id, event, crtc_id,
 				 amdgpu_present_flip_event,
 				 amdgpu_present_flip_abort,
-				 FLIP_VSYNC);
+				 sync_flip ? FLIP_VSYNC : FLIP_ASYNC);
 	if (!ret)
 		xf86DrvMsg(scrn->scrnIndex, X_ERROR, "present flip failed\n");
 	else
