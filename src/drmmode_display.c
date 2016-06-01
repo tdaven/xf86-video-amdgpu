@@ -656,24 +656,6 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 	drmModeModeInfo kmode;
 	uint32_t bo_handle;
 
-	if (drmmode->fb_id == 0) {
-		if (!amdgpu_bo_get_handle(info->front_buffer, &bo_handle)) {
-			ErrorF("failed to get BO handle for FB\n");
-			return FALSE;
-		}
-
-		ret = drmModeAddFB(pAMDGPUEnt->fd,
-				   pScrn->virtualX,
-				   pScrn->virtualY,
-				   pScrn->depth, pScrn->bitsPerPixel,
-				   pScrn->displayWidth * info->pixel_bytes,
-				   bo_handle, &drmmode->fb_id);
-		if (ret < 0) {
-			ErrorF("failed to add fb\n");
-			return FALSE;
-		}
-	}
-
 	saved_mode = crtc->mode;
 	saved_x = crtc->x;
 	saved_y = crtc->y;
@@ -781,6 +763,27 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 				amdgpu_scanout_update_handler(crtc, 0, 0, drmmode_crtc);
 				amdgpu_glamor_finish(pScrn);
 			}
+		}
+
+		if (fb_id == 0) {
+			if (!amdgpu_bo_get_handle(info->front_buffer, &bo_handle)) {
+				ErrorF("failed to get BO handle for FB\n");
+				ret = FALSE;
+				goto done;
+			}
+
+			if (drmModeAddFB(pAMDGPUEnt->fd,
+				   pScrn->virtualX,
+				   pScrn->virtualY,
+				   pScrn->depth, pScrn->bitsPerPixel,
+				   pScrn->displayWidth * info->pixel_bytes,
+				   bo_handle, &drmmode->fb_id) < 0) {
+				ErrorF("failed to add fb\n");
+				ret = FALSE;
+				goto done;
+			}
+
+			fb_id = drmmode->fb_id;
 		}
 
 		/* Wait for any pending flip to finish */
