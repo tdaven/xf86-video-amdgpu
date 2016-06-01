@@ -1893,7 +1893,6 @@ static Bool drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 	int i, pitch, old_width, old_height, old_pitch;
 	int cpp = info->pixel_bytes;
 	PixmapPtr ppix = screen->GetScreenPixmap(screen);
-	uint32_t bo_handle;
 	void *fb_shadow;
 	int hint = 0;
 	xRectangle rect;
@@ -1914,6 +1913,7 @@ static Bool drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 	old_height = scrn->virtualY;
 	old_pitch = scrn->displayWidth;
 	old_fb_id = drmmode->fb_id;
+	drmmode->fb_id = 0;
 	old_front = info->front_buffer;
 
 	scrn->virtualX = width;
@@ -1937,20 +1937,6 @@ static Bool drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 
 	xf86DrvMsg(scrn->scrnIndex, X_INFO, " => pitch %d bytes\n", pitch);
 	scrn->displayWidth = pitch / cpp;
-
-	if (!amdgpu_bo_get_handle(info->front_buffer, &bo_handle)) {
-		xf86DrvMsg(scrn->scrnIndex, X_ERROR,
-			   "Failed to get front buffer handle\n");
-		goto fail;
-	}
-
-	if (drmModeAddFB(pAMDGPUEnt->fd, width, height, scrn->depth,
-			 scrn->bitsPerPixel, pitch,
-			 bo_handle, &drmmode->fb_id) != 0) {
-		xf86DrvMsg(scrn->scrnIndex, X_ERROR,
-			   "drmModeAddFB failed for front buffer\n");
-		goto fail;
-	}
 
 	if (info->use_glamor ||
 	    (info->front_buffer->flags & AMDGPU_BO_FLAGS_GBM)) {
