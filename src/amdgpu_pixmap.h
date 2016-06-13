@@ -63,10 +63,10 @@ static inline Bool amdgpu_set_pixmap_bo(PixmapPtr pPix, struct amdgpu_buffer *bo
 		return TRUE;
 
 	if (priv) {
-		if (priv->bo == bo)
-			return TRUE;
-
 		if (priv->bo) {
+			if (priv->bo == bo)
+				return TRUE;
+
 			amdgpu_bo_unref(&priv->bo);
 			priv->handle_valid = FALSE;
 		}
