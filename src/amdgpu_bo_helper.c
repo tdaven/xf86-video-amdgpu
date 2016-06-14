@@ -426,7 +426,7 @@ Bool amdgpu_set_shared_pixmap_backing(PixmapPtr ppix, void *fd_handle)
 
 #ifdef USE_GLAMOR
 		if (info->use_glamor &&
-		    !amdgpu_glamor_create_textured_pixmap(ppix, priv)) {
+		    !amdgpu_glamor_create_textured_pixmap(ppix, priv->bo)) {
 			free(priv->bo);
 			free(priv);
 			return FALSE;
