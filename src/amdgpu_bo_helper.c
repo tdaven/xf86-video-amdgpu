@@ -387,7 +387,7 @@ Bool amdgpu_set_shared_pixmap_backing(PixmapPtr ppix, void *fd_handle)
 	Bool ret;
 
 	if (info->gbm) {
-		struct amdgpu_pixmap *priv;
+		struct amdgpu_buffer *bo;
 		struct gbm_import_fd_data data;
 		uint32_t bo_use = GBM_BO_USE_RENDERING;
 
@@ -396,16 +396,10 @@ Bool amdgpu_set_shared_pixmap_backing(PixmapPtr ppix, void *fd_handle)
 		if (data.format == ~0U)
 			return FALSE;
 
-		priv = calloc(1, sizeof(struct amdgpu_pixmap));
-		if (!priv)
+		bo = calloc(1, sizeof(struct amdgpu_buffer));
+		if (!bo)
 			return FALSE;
-
-		priv->bo = calloc(1, sizeof(struct amdgpu_buffer));
-		if (!priv->bo) {
-			free(priv);
-			return FALSE;
-		}
-		priv->bo->ref_count = 1;
+		bo->ref_count = 1;
 
 		data.fd = ihandle;
 		data.width = ppix->drawable.width;
@@ -415,27 +409,27 @@ Bool amdgpu_set_shared_pixmap_backing(PixmapPtr ppix, void *fd_handle)
 		if (ppix->drawable.bitsPerPixel == pScrn->bitsPerPixel)
 			bo_use |= GBM_BO_USE_SCANOUT;
 
-		priv->bo->bo.gbm = gbm_bo_import(info->gbm, GBM_BO_IMPORT_FD,
-						 &data, bo_use);
-		if (!priv->bo->bo.gbm) {
-			free(priv->bo);
-			free(priv);
+		bo->bo.gbm = gbm_bo_import(info->gbm, GBM_BO_IMPORT_FD, &data,
+					   bo_use);
+		if (!bo->bo.gbm) {
+			free(bo);
 			return FALSE;
 		}
 
-		priv->bo->flags |= AMDGPU_BO_FLAGS_GBM;
+		bo->flags |= AMDGPU_BO_FLAGS_GBM;
 
 #ifdef USE_GLAMOR
 		if (info->use_glamor &&
-		    !amdgpu_glamor_create_textured_pixmap(ppix, priv->bo)) {
-			free(priv->bo);
-			free(priv);
+		    !amdgpu_glamor_create_textured_pixmap(ppix, bo)) {
+			amdgpu_bo_unref(&bo);
 			return FALSE;
 		}
 #endif
 
-		amdgpu_set_pixmap_private(ppix, priv);
-		return TRUE;
+		ret = amdgpu_set_pixmap_bo(ppix, bo);
+		/* amdgpu_set_pixmap_bo increments ref_count if it succeeds */
+		amdgpu_bo_unref(&bo);
+		return ret;
 	}
 
 	pixmap_buffer = amdgpu_gem_bo_open_prime(pAMDGPUEnt->pDev, ihandle, size);
