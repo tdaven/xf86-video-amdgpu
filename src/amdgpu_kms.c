@@ -205,7 +205,9 @@ static Bool AMDGPUCreateScreenResources_KMS(ScreenPtr pScreen)
 	if (info->dri2.enabled || info->use_glamor) {
 		if (info->front_buffer) {
 			PixmapPtr pPix = pScreen->GetScreenPixmap(pScreen);
-			amdgpu_set_pixmap_bo(pPix, info->front_buffer);
+
+			if (!amdgpu_set_pixmap_bo(pPix, info->front_buffer))
+				return FALSE;
 		}
 	}
 

@@ -111,18 +111,18 @@ static PixmapPtr drmmode_create_bo_pixmap(ScrnInfoPtr pScrn,
 		return NULL;
 
 	if (!(*pScreen->ModifyPixmapHeader) (pixmap, width, height,
-					     depth, bpp, pitch, NULL)) {
-		return NULL;
-	}
+					     depth, bpp, pitch, NULL))
+		goto fail;
 
-	amdgpu_set_pixmap_bo(pixmap, bo);
+	if (!amdgpu_glamor_create_textured_pixmap(pixmap, bo))
+		goto fail;
 
-	if (!amdgpu_glamor_create_textured_pixmap(pixmap, bo)) {
-		pScreen->DestroyPixmap(pixmap);
-		return NULL;
-	}
+	if (amdgpu_set_pixmap_bo(pixmap, bo))
+		return pixmap;
 
-	return pixmap;
+fail:
+	pScreen->DestroyPixmap(pixmap);
+	return NULL;
 }
 
 static void drmmode_destroy_bo_pixmap(PixmapPtr pixmap)
@@ -1944,9 +1944,14 @@ static Bool drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 		goto fail;
 	}
 
+	if (!amdgpu_glamor_create_screen_resources(scrn->pScreen))
+		goto fail;
+
 	if (info->use_glamor ||
 	    (info->front_buffer->flags & AMDGPU_BO_FLAGS_GBM)) {
-		amdgpu_set_pixmap_bo(ppix, info->front_buffer);
+		if (!amdgpu_set_pixmap_bo(ppix, info->front_buffer))
+			goto fail;
+
 		screen->ModifyPixmapHeader(ppix,
 					   width, height, -1, -1, pitch, info->front_buffer->cpu_ptr);
 	} else {
@@ -1962,9 +1967,6 @@ static Bool drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 #if XORG_VERSION_CURRENT < XORG_VERSION_NUMERIC(1,9,99,1,0)
 	scrn->pixmapPrivate.ptr = ppix->devPrivate.ptr;
 #endif
-
-	if (info->use_glamor)
-		amdgpu_glamor_create_screen_resources(scrn->pScreen);
 
 	/* Clear new buffer */
 	gc = GetScratchGC(ppix->drawable.depth, scrn->pScreen);

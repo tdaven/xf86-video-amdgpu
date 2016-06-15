@@ -384,6 +384,7 @@ Bool amdgpu_set_shared_pixmap_backing(PixmapPtr ppix, void *fd_handle)
 	struct amdgpu_buffer *pixmap_buffer = NULL;
 	int ihandle = (int)(long)fd_handle;
 	uint32_t size = ppix->devKind * ppix->drawable.height;
+	Bool ret;
 
 	if (info->gbm) {
 		struct amdgpu_pixmap *priv;
@@ -442,13 +443,15 @@ Bool amdgpu_set_shared_pixmap_backing(PixmapPtr ppix, void *fd_handle)
 		return FALSE;
 	}
 
-	amdgpu_set_pixmap_bo(ppix, pixmap_buffer);
-
 	close(ihandle);
+
+	ret = amdgpu_set_pixmap_bo(ppix, pixmap_buffer);
+
 	/* we have a reference from the alloc and one from set pixmap bo,
 	   drop one */
 	amdgpu_bo_unref(&pixmap_buffer);
-	return TRUE;
+
+	return ret;
 }
 
 #endif /* AMDGPU_PIXMAP_SHARING */
