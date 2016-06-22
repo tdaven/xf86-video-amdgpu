@@ -650,7 +650,7 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 	DisplayModeRec saved_mode;
 	uint32_t *output_ids = NULL;
 	int output_count = 0;
-	Bool ret = TRUE;
+	Bool ret = FALSE;
 	int i;
 	int fb_id;
 	drmModeModeInfo kmode;
@@ -668,10 +668,8 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 		crtc->rotation = rotation;
 
 		output_ids = calloc(sizeof(uint32_t), xf86_config->num_output);
-		if (!output_ids) {
-			ret = FALSE;
+		if (!output_ids)
 			goto done;
-		}
 
 		for (i = 0; i < xf86_config->num_output; i++) {
 			xf86OutputPtr output = xf86_config->output[i];
@@ -768,7 +766,6 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 		if (fb_id == 0) {
 			if (!amdgpu_bo_get_handle(info->front_buffer, &bo_handle)) {
 				ErrorF("failed to get BO handle for FB\n");
-				ret = FALSE;
 				goto done;
 			}
 
@@ -779,7 +776,6 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 				   pScrn->displayWidth * info->pixel_bytes,
 				   bo_handle, &drmmode->fb_id) < 0) {
 				ErrorF("failed to add fb\n");
-				ret = FALSE;
 				goto done;
 			}
 
@@ -797,7 +793,6 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 				   output_count, &kmode) != 0) {
 			xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
 				   "failed to set mode: %s\n", strerror(errno));
-			ret = FALSE;
 			goto done;
 		} else
 			ret = TRUE;
