@@ -697,17 +697,11 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 		if (crtc->randr_crtc && crtc->randr_crtc->scanout_pixmap) {
 			x = drmmode_crtc->prime_pixmap_x;
 			y = 0;
-
-			drmmode_crtc_scanout_destroy(drmmode, &drmmode_crtc->scanout[0]);
-			drmmode_crtc_scanout_destroy(drmmode, &drmmode_crtc->scanout[1]);
 		} else
 #endif
 		if (drmmode_crtc->rotate.fb_id) {
 			fb_id = drmmode_crtc->rotate.fb_id;
 			x = y = 0;
-
-			drmmode_crtc_scanout_destroy(drmmode, &drmmode_crtc->scanout[0]);
-			drmmode_crtc_scanout_destroy(drmmode, &drmmode_crtc->scanout[1]);
 		} else if (info->tear_free ||
 #if XF86_CRTC_VERSION >= 4
 			   crtc->driverIsPerformingTransform ||
@@ -838,8 +832,14 @@ done:
 		crtc->y = saved_y;
 		crtc->rotation = saved_rotation;
 		crtc->mode = saved_mode;
-	} else
+	} else {
 		crtc->active = TRUE;
+
+		if (fb_id != drmmode_crtc->scanout[0].fb_id) {
+			drmmode_crtc_scanout_destroy(drmmode, &drmmode_crtc->scanout[0]);
+			drmmode_crtc_scanout_destroy(drmmode, &drmmode_crtc->scanout[1]);
+		}
+	}
 
 	return ret;
 }
