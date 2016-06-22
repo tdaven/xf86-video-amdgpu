@@ -1952,14 +1952,8 @@ static Bool drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 		goto fail;
 	}
 
-	if (!amdgpu_glamor_create_screen_resources(scrn->pScreen))
-		goto fail;
-
 	if (info->use_glamor ||
 	    (info->front_buffer->flags & AMDGPU_BO_FLAGS_GBM)) {
-		if (!amdgpu_set_pixmap_bo(ppix, info->front_buffer))
-			goto fail;
-
 		screen->ModifyPixmapHeader(ppix,
 					   width, height, -1, -1, pitch, info->front_buffer->cpu_ptr);
 	} else {
@@ -1975,6 +1969,15 @@ static Bool drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 #if XORG_VERSION_CURRENT < XORG_VERSION_NUMERIC(1,9,99,1,0)
 	scrn->pixmapPrivate.ptr = ppix->devPrivate.ptr;
 #endif
+
+	if (!amdgpu_glamor_create_screen_resources(scrn->pScreen))
+		goto fail;
+
+	if (info->use_glamor ||
+	    (info->front_buffer->flags & AMDGPU_BO_FLAGS_GBM)) {
+		if (!amdgpu_set_pixmap_bo(ppix, info->front_buffer))
+			goto fail;
+	}
 
 	/* Clear new buffer */
 	gc = GetScratchGC(ppix->drawable.depth, scrn->pScreen);
