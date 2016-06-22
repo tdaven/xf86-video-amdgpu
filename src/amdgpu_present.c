@@ -211,29 +211,18 @@ amdgpu_present_flush(WindowPtr window)
 }
 
 /*
- * Test to see if page flipping is possible on the target crtc
+ * Test to see if unflipping is possible
+ *
+ * These tests have to pass for flips as well
  */
 static Bool
-amdgpu_present_check_flip(RRCrtcPtr crtc, WindowPtr window, PixmapPtr pixmap,
-			  Bool sync_flip)
+amdgpu_present_check_unflip(ScrnInfoPtr scrn)
 {
-	ScreenPtr screen = window->drawable.pScreen;
-	ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
-	AMDGPUInfoPtr info = AMDGPUPTR(scrn);
 	xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
 	int num_crtcs_on;
 	int i;
 
 	if (!scrn->vtSema)
-		return FALSE;
-
-	if (!info->allowPageFlip)
-		return FALSE;
-
-	if (info->hwcursor_disabled)
-		return FALSE;
-
-	if (info->drmmode.dri2_flipping)
 		return FALSE;
 
 	for (i = 0, num_crtcs_on = 0; i < config->num_crtc; i++) {
@@ -251,6 +240,29 @@ amdgpu_present_check_flip(RRCrtcPtr crtc, WindowPtr window, PixmapPtr pixmap,
 	}
 
 	return num_crtcs_on > 0;
+}
+
+/*
+ * Test to see if page flipping is possible on the target crtc
+ */
+static Bool
+amdgpu_present_check_flip(RRCrtcPtr crtc, WindowPtr window, PixmapPtr pixmap,
+			  Bool sync_flip)
+{
+	ScreenPtr screen = window->drawable.pScreen;
+	ScrnInfoPtr scrn = xf86ScreenToScrn(screen);
+	AMDGPUInfoPtr info = AMDGPUPTR(scrn);
+
+	if (!info->allowPageFlip)
+		return FALSE;
+
+	if (info->hwcursor_disabled)
+		return FALSE;
+
+	if (info->drmmode.dri2_flipping)
+		return FALSE;
+
+	return amdgpu_present_check_unflip(scrn);
 }
 
 /*
@@ -333,7 +345,7 @@ amdgpu_present_unflip(ScreenPtr screen, uint64_t event_id)
 	PixmapPtr pixmap = screen->GetScreenPixmap(screen);
 	int i;
 
-	if (!amdgpu_present_check_flip(NULL, screen->root, pixmap, TRUE))
+	if (!amdgpu_present_check_unflip(scrn))
 		goto modeset;
 
 	event = calloc(1, sizeof(struct amdgpu_present_vblank_event));
