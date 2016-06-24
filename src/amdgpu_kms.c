@@ -253,8 +253,7 @@ static void amdgpu_dirty_update(ScreenPtr screen)
 #endif
 
 static Bool
-amdgpu_scanout_extents_intersect(xf86CrtcPtr xf86_crtc, BoxPtr extents, int w,
-				 int h)
+amdgpu_scanout_extents_intersect(xf86CrtcPtr xf86_crtc, BoxPtr extents)
 {
 	extents->x1 -= xf86_crtc->filter_width >> 1;
 	extents->x2 += xf86_crtc->filter_width >> 1;
@@ -264,8 +263,8 @@ amdgpu_scanout_extents_intersect(xf86CrtcPtr xf86_crtc, BoxPtr extents, int w,
 
 	extents->x1 = max(extents->x1, 0);
 	extents->y1 = max(extents->y1, 0);
-	extents->x2 = min(extents->x2, w);
-	extents->y2 = min(extents->y2, h);
+	extents->x2 = min(extents->x2, xf86_crtc->mode.HDisplay);
+	extents->y2 = min(extents->y2, xf86_crtc->mode.VDisplay);
 
 	return (extents->x1 < extents->x2 && extents->y1 < extents->y2);
 }
@@ -297,8 +296,7 @@ amdgpu_scanout_do_update(xf86CrtcPtr xf86_crtc, int scanout_id)
 	pScreen = pDraw->pScreen;
 	extents = *RegionExtents(pRegion);
 	RegionEmpty(pRegion);
-	if (!amdgpu_scanout_extents_intersect(xf86_crtc, &extents, pDraw->width,
-					      pDraw->height))
+	if (!amdgpu_scanout_extents_intersect(xf86_crtc, &extents))
 		return FALSE;
 
 #if XF86_CRTC_VERSION >= 4
@@ -396,7 +394,6 @@ amdgpu_scanout_update(xf86CrtcPtr xf86_crtc)
 	drmVBlank vbl;
 	DamagePtr pDamage;
 	RegionPtr pRegion;
-	DrawablePtr pDraw;
 	BoxRec extents;
 
 	if (!xf86_crtc->enabled ||
@@ -413,10 +410,8 @@ amdgpu_scanout_update(xf86CrtcPtr xf86_crtc)
 	if (!RegionNotEmpty(pRegion))
 		return;
 
-	pDraw = &drmmode_crtc->scanout[0].pixmap->drawable;
 	extents = *RegionExtents(pRegion);
-	if (!amdgpu_scanout_extents_intersect(xf86_crtc, &extents, pDraw->width,
-					      pDraw->height))
+	if (!amdgpu_scanout_extents_intersect(xf86_crtc, &extents))
 		return;
 
 	scrn = xf86_crtc->scrn;
