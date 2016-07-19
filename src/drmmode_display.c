@@ -2048,6 +2048,13 @@ drmmode_flip_handler(xf86CrtcPtr crtc, uint32_t frame, uint64_t usec, void *even
 	drmmode_crtc->flip_pending = FALSE;
 }
 
+#if HAVE_NOTIFY_FD
+static void drmmode_notify_fd(int fd, int notify, void *data)
+{
+	drmmode_ptr drmmode = data;
+	drmHandleEvent(fd, &drmmode->event_context);
+}
+#else
 static void drm_wakeup_handler(pointer data, int err, pointer p)
 {
 	drmmode_ptr drmmode = data;
@@ -2058,6 +2065,7 @@ static void drm_wakeup_handler(pointer data, int err, pointer p)
 		drmHandleEvent(pAMDGPUEnt->fd, &drmmode->event_context);
 	}
 }
+#endif
 
 Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int cpp)
 {
@@ -2136,9 +2144,13 @@ void drmmode_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
 
 	info->drmmode_inited = TRUE;
 	if (pAMDGPUEnt->fd_wakeup_registered != serverGeneration) {
+#if HAVE_NOTIFY_FD
+		SetNotifyFd(pAMDGPUEnt->fd, drmmode_notify_fd, X_NOTIFY_READ, drmmode);
+#else
 		AddGeneralSocket(pAMDGPUEnt->fd);
 		RegisterBlockAndWakeupHandlers((BlockHandlerProcPtr) NoopDDA,
 					       drm_wakeup_handler, drmmode);
+#endif
 		pAMDGPUEnt->fd_wakeup_registered = serverGeneration;
 		pAMDGPUEnt->fd_wakeup_ref = 1;
 	} else
@@ -2157,9 +2169,13 @@ void drmmode_fini(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
 
 	if (pAMDGPUEnt->fd_wakeup_registered == serverGeneration &&
 	    !--pAMDGPUEnt->fd_wakeup_ref) {
+#if HAVE_NOTIFY_FD
+		RemoveNotifyFd(pAMDGPUEnt->fd);
+#else
 		RemoveGeneralSocket(pAMDGPUEnt->fd);
 		RemoveBlockAndWakeupHandlers((BlockHandlerProcPtr) NoopDDA,
 					     drm_wakeup_handler, drmmode);
+#endif
 	}
 
 	for (c = 0; c < config->num_crtc; c++) {
